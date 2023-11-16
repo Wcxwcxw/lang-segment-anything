@@ -1,5 +1,4 @@
 import os
-
 import groundingdino.datasets.transforms as T
 import numpy as np
 import torch
@@ -18,20 +17,24 @@ SAM_MODELS = {
     "vit_b": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth"
 }
 
-CACHE_PATH = os.environ.get("TORCH_HOME", os.path.expanduser("~/.cache/torch/hub/checkpoints"))
-
+# CACHE_PATH = os.environ.get("TORCH_HOME", os.path.expanduser("~/.cache/torch/hub/checkpoints"))
+CACHE_PATH = os.environ.get("TORCH_HOME", os.path.expanduser("/home/chenxu/.cache/torch/hub/checkpoints"))
 
 def load_model_hf(repo_id, filename, ckpt_config_filename, device='cpu'):
-    cache_config_file = hf_hub_download(repo_id=repo_id, filename=ckpt_config_filename)
-
+    # cache_config_file = hf_hub_download(repo_id=repo_id, filename=ckpt_config_filename, local_dir=repo_id)
+    cache_config_file = repo_id + ckpt_config_filename
     args = SLConfig.fromfile(cache_config_file)
+    # print("args is not the problem")
     model = build_model(args)
+    # print("model.device")
     args.device = device
 
-    cache_file = hf_hub_download(repo_id=repo_id, filename=filename)
+    # cache_file = hf_hub_download(repo_id=repo_id, filename=filename, local_dir=repo_id)
+    cache_file = repo_id + filename
     checkpoint = torch.load(cache_file, map_location='cpu')
     log = model.load_state_dict(clean_state_dict(checkpoint['model']), strict=False)
     print(f"Model loaded from {cache_file} \n => {log}")
+    # import pdb;pdb.set_trace()
     model.eval()
     return model
 
@@ -51,7 +54,7 @@ class LangSAM():
 
     def __init__(self, sam_type="vit_h", ckpt_path=None):
         self.sam_type = sam_type
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.build_groundingdino()
         self.build_sam(ckpt_path)
 
@@ -82,7 +85,8 @@ class LangSAM():
             self.sam = SamPredictor(sam)
 
     def build_groundingdino(self):
-        ckpt_repo_id = "ShilongLiu/GroundingDINO"
+        # ckpt_repo_id = "ShilongLiu/GroundingDINO"
+        ckpt_repo_id = "/home/chenxu/.cache/huggingface/hub/models--ShilongLiu--GroundingDINO/snapshots/ckpt/"
         ckpt_filename = "groundingdino_swinb_cogcoor.pth"
         ckpt_config_filename = "GroundingDINO_SwinB.cfg.py"
         self.groundingdino = load_model_hf(ckpt_repo_id, ckpt_filename, ckpt_config_filename)
@@ -110,7 +114,8 @@ class LangSAM():
             boxes=transformed_boxes.to(self.sam.device),
             multimask_output=False,
         )
-        return masks.cpu()
+        # return masks.cpu()
+        return masks
 
     def predict(self, image_pil, text_prompt, box_threshold=0.3, text_threshold=0.25):
         boxes, logits, phrases = self.predict_dino(image_pil, text_prompt, box_threshold, text_threshold)
